@@ -7,6 +7,7 @@ import calendar
 import datetime
 import time
 import random
+import json
 
 import pdb
 
@@ -24,29 +25,27 @@ class MOSAuthenticator:
         popular="https://www.mos.ru/services/catalog/popular/"
         
         logging.debug("Открываем портал www.mos.ru")
-        # получение mos_id
-        r_handler = self._ps.get("https://stats.mos.ru/handler/handler.js")
         # получение session-cookie
-        r_enter = self._ps.get(popular)
+        r_root = self._ps.get("https://www.mos.ru/")
         # получение ACS-SESSID
         r_opts = self._ps.get("https://www.mos.ru/api/oauth20/v1/frontend/json/ru/options")
+        # получение mos_id
+        #_enter = self._ps.get(popular)
 
-        r = self._ps.get("https://www.mos.ru/api/acs/v1/login?redirect=https%3A%2F%2Fwww.mos.ru%2Fservices%2Fcatalog%2Fpopular%2F", allow_redirects=False)
-        if r.status_code != 303:
+        r_login = self._ps.get("https://www.mos.ru/api/acs/v1/login?redirect=https%3A%2F%2Fwww.mos.ru%2F", allow_redirects=False)
+        if r_login.status_code != 303:
             logging.error("Церемония поменялась")
             raise
 
         # "https://login.mos.ru/sps/oauth/ae?client_id=xxx..&response_type=code
         # &redirect_uri=https://my.mos.ru/my/website_redirect_uri&scope=openid+profile", allow_redirects=False)
-        r_ae = self._ps.get(r.headers['location'], allow_redirects=False)
+        r_ae = self._ps.get(r_login.headers['location'], allow_redirects=False)
         if r_ae.status_code != 303 or r_ae.headers['Location']!="/sps/login/methods/password":
             logging.error("Церемония поменялась")
             raise
         #ps.cookies.update(r.cookies)
-        pdb.set_trace()
         password_cookies={
                 'fm': r_ae.cookies['fm'],
-                'mos_id' : r_handler.cookies['mos_id'],
                 'lstate' : r_ae.cookies['lstate'],
                 'oauth_az':r_ae.cookies['oauth_az'],
                 'origin': r_ae.cookies['origin']}
@@ -54,35 +53,10 @@ class MOSAuthenticator:
         r_password=self._ps.get("https://login.mos.ru"+r_ae.headers['Location'],
                 allow_redirects=False, cookies=password_cookies)
         logging.debug("Начало аутентификационной сессии")
-        r_opts=self._ps.get("https://www.mos.ru/api/oauth20/v1/frontend/json/ru/options", headers={"referer":popular})
-        logging.debug("Вход")
-        r_enter=self._ps.get(f"https://www.mos.ru/api/oauth20/v1/frontend/json/ru/process/enter?redirect={popular}",
-                cookies=r_opts.cookies, allow_redirects=False)
-
-        if r_enter.status_code !=302:
-            logging.error("Церемония поменялась")
-            raise
-        r_authorize=self._ps.get(r_enter.headers['Location'], allow_redirects=False)
-        logging.debug("Переход на форму авторизации")
-        if r_enter.status_code !=302:
-            logging.error("Церемония поменялась")
-            raise
-        r_ae2=self._ps.get(r_authorize.headers['Location'], allow_redirects=False)
-
-        if r_ae2.status_code !=303 or r_ae2.headers['Location']!="/sps/login/methods/password":
-            logging.error("Церемония поменялась")
-            raise
-
-        r_password2=self._ps.get("https://login.mos.ru"+r_ae2.headers['Location'], allow_redirects=False, cookies=r_ae2.cookies)
-        if r_password2.status_code != 200 :
-            logging.error("Церемония поменялась")
-            raise
-
-        logging.debug("Выбираем вариант входа: через госуслуги")
 
         r_execute=self._ps.get("https://login.mos.ru/sps/login/externalIdps/execute?typ=esia&name=esia_1&isPopup=false",
                 headers={"referer": "https://login.mos.ru/sps/login/methods/password"}, 
-                cookies=r_ae2.cookies, allow_redirects=False)
+                allow_redirects=False)
 
         if r_execute.status_code !=303 :
             logging.error("Церемония поменялась")
@@ -110,46 +84,48 @@ class MOSAuthenticator:
         if r_callback.cookies['Ltpatoken2'] != '' :
             logging.debug("Авторизовано успешно")
         self._ps.cookies.update(r_callback.cookies)
-        r=self._ps.get(r_callback.headers['Location'])
-        pdb.set_trace()
+        # login/satisfy?code=...
+        r=self._ps.get(r_callback.headers['Location'], allow_redirects=False)
+        r=self._ps.get("https://www.mos.ru/")
+        r_opts = self._ps.get("https://www.mos.ru/api/oauth20/v1/frontend/json/ru/options")
 
         self.Ltpatoken2 = r_callback.cookies['Ltpatoken2']
         milisecs=calendar.timegm(time.gmtime())*1000+random.randint(0,999)+1
-        self._ps.cookies["mos_id"]="CllGxlmW7RAJKzw/DJfJAgA="
+        # obtain NGINXSESSID
+        my_req=f"https://my.mos.ru/static/xdm/index.html?nocache={milisecs}&xdm_e=https%3A%2F%2Fwww.mos.ru&xdm_c=default1&xdm_p=1"
         pdb.set_trace()
-#        r=self._ps.get("https://my.mos.ru/static/xdm/index.html?nocache="+
-#                str(milisecs)+"&xdm_e=https%3A%2F%2Fwww.mos.ru&xdm_c=default1&xdm_p=1")
-#        self._ps.cookies.update(r.cookies)
-#        r=self._ps.get(r.headers['Location'])
-#        self._ps.cookies.update(r.cookies) 
-#        r=self._ps.get(r.headers['Location']) 
-#        self._ps.cookies.update(r.cookies)
-#        r=self._ps.get(r.headers['Location'])
-#        self._ps.cookies.update(r.cookies)
- 
-        r_opts = self._ps.get("https://www.mos.ru/api/oauth20/v1/frontend/json/ru/options")
+        r_my = self._ps.get(my_req,allow_redirects=False)
+        # redir to oauth20.mos.ru
+        r_auth = self._ps.get(r_my.headers['Location'], allow_redirects=False)
+        # redir to login.mos.ru
+        r_ae = self._ps.get(r_auth.headers['Location'], allow_redirects=False)
+        # redir to my.mos.ru/website_redirect
+        r_webredir = self._ps.get(r_ae.headers['Location'], allow_redirects=False)
+        # redir to my.mos.ru/../xdm/index.html
+        r_index = self._ps.get(r_webredir.headers['Location'], allow_redirects=False)
 
+        opts = json.loads(r_opts.text)
         pdb.set_trace()
-
-
         post_token = {
                 "system_id": "mos.ru",
-                "nonce" : "",
-                "timestamp" : "",
-                "signature" : ""}
+                "nonce" : opts["elk"]["nonce"],
+                "timestamp" : opts["elk"]["timestamp"],
+                "signature" : opts["elk"]["signature"]}
 
         r_tok=self._ps.post("https://my.mos.ru/data/token", 
-                headers={"referer":"https://my.mos.ru/static/xdm/index.html"},
-                cookies={"Ltpatoken2":self.Ltpatoken2},
+                headers={"referer":my_req},
                 data=post_token)
+        self.token = json.loads(r_tok.text)['token']
 
-
-        self.Authenticated = self.Ltpatoken2 != ""
+        self.Authenticated = self.token != ""
         return self.Authenticated
 
-    def GetName(self):
+    def GetStatus(self):
         if not self.Authenticated :
             logging.error("Не аутентифицировано")
             raise
 
-        r_my = self._ps.get("https://my.mos.ru/data/")
+        r_my = self._ps.get(f"https://my.mos.ru/data/{self.token}/status?site_id=mos.ru")
+
+        return json.loads(r_my.text)
+

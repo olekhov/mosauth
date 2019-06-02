@@ -15,4 +15,6 @@ with open('config.json') as json_data_file:
 mosau = MOSAuthenticator({})
 
 mosau.AuthenticateByESIA(pguconfig)
+me = mosau.GetStatus()
+print(f"Здравствуйте, {me['NAME']} {me['SURNAME']}, у вас {me['UNREAD']} непрочитанных сообщений")
 
