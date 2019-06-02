@@ -22,13 +22,37 @@ class MOSAuthenticator:
 
     def AuthenticateByESIA(self, esia_cfg):
         popular="https://www.mos.ru/services/catalog/popular/"
+        
         logging.debug("Открываем портал www.mos.ru")
-        r_ae=self._ps.get("https://login.mos.ru/sps/oauth/ae?client_id=Wiu8G6vfDssAMOeyzf76&response_type=code&redirect_uri=https://my.mos.ru/my/website_redirect_uri&scope=openid+profile", allow_redirects=False)
+        # получение mos_id
+        r_handler = self._ps.get("https://stats.mos.ru/handler/handler.js")
+        # получение session-cookie
+        r_enter = self._ps.get(popular)
+        # получение ACS-SESSID
+        r_opts = self._ps.get("https://www.mos.ru/api/oauth20/v1/frontend/json/ru/options")
+
+        r = self._ps.get("https://www.mos.ru/api/acs/v1/login?redirect=https%3A%2F%2Fwww.mos.ru%2Fservices%2Fcatalog%2Fpopular%2F", allow_redirects=False)
+        if r.status_code != 303:
+            logging.error("Церемония поменялась")
+            raise
+
+        # "https://login.mos.ru/sps/oauth/ae?client_id=xxx..&response_type=code
+        # &redirect_uri=https://my.mos.ru/my/website_redirect_uri&scope=openid+profile", allow_redirects=False)
+        r_ae = self._ps.get(r.headers['location'], allow_redirects=False)
         if r_ae.status_code != 303 or r_ae.headers['Location']!="/sps/login/methods/password":
             logging.error("Церемония поменялась")
             raise
         #ps.cookies.update(r.cookies)
-        r_password=self._ps.get("https://login.mos.ru"+r_ae.headers['Location'], allow_redirects=False)
+        pdb.set_trace()
+        password_cookies={
+                'fm': r_ae.cookies['fm'],
+                'mos_id' : r_handler.cookies['mos_id'],
+                'lstate' : r_ae.cookies['lstate'],
+                'oauth_az':r_ae.cookies['oauth_az'],
+                'origin': r_ae.cookies['origin']}
+
+        r_password=self._ps.get("https://login.mos.ru"+r_ae.headers['Location'],
+                allow_redirects=False, cookies=password_cookies)
         logging.debug("Начало аутентификационной сессии")
         r_opts=self._ps.get("https://www.mos.ru/api/oauth20/v1/frontend/json/ru/options", headers={"referer":popular})
         logging.debug("Вход")
