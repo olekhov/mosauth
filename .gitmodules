@@ -1,0 +1,3 @@
+[submodule "mosauth/pguoauth"]
+	path = mosauth/pguoauth
+	url = https://github.com/olekhov/pguoauth.git
