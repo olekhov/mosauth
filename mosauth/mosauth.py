@@ -93,7 +93,7 @@ class MOSAuthenticator:
         milisecs=calendar.timegm(time.gmtime())*1000+random.randint(0,999)+1
         # obtain NGINXSESSID
         my_req=f"https://my.mos.ru/static/xdm/index.html?nocache={milisecs}&xdm_e=https%3A%2F%2Fwww.mos.ru&xdm_c=default1&xdm_p=1"
-        pdb.set_trace()
+        #pdb.set_trace()
         r_my = self._ps.get(my_req,allow_redirects=False)
         # redir to oauth20.mos.ru
         r_auth = self._ps.get(r_my.headers['Location'], allow_redirects=False)
@@ -105,7 +105,7 @@ class MOSAuthenticator:
         r_index = self._ps.get(r_webredir.headers['Location'], allow_redirects=False)
 
         opts = json.loads(r_opts.text)
-        pdb.set_trace()
+        #pdb.set_trace()
         post_token = {
                 "system_id": "mos.ru",
                 "nonce" : opts["elk"]["nonce"],
