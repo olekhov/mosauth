@@ -33,7 +33,7 @@ class MOSAuthenticator:
         #_enter = self._ps.get(popular)
 
         r_login = self._ps.get("https://www.mos.ru/api/acs/v1/login?redirect=https%3A%2F%2Fwww.mos.ru%2F", allow_redirects=False)
-        if r_login.status_code != 303:
+        if r_login.status_code != 303 and r_login.status_code!=307:
             logging.error("Церемония поменялась")
             raise
 
@@ -118,6 +118,12 @@ class MOSAuthenticator:
         self.token = json.loads(r_tok.text)['token']
 
         self.Authenticated = self.token != ""
+        r_status=self._ps.get(f"https://my.mos.ru/data/{self.token}/status?site_id=mos.ru",
+                headers={"referer":my_req})
+        r_data=self._ps.get(f"https://my.mos.ru/data/{self.token}/profile/me/PERSON,FIO/",
+                headers={"referer":my_req})
+
+
         return self.Authenticated
 
     def GetStatus(self):
