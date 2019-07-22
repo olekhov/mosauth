@@ -23,7 +23,7 @@ class MOSAuthenticator:
 
     def AuthenticateByESIA(self, esia_cfg):
         popular="https://www.mos.ru/services/catalog/popular/"
-        
+
         logging.debug("Открываем портал www.mos.ru")
         # получение session-cookie
         r_root = self._ps.get("https://www.mos.ru/")
@@ -55,21 +55,29 @@ class MOSAuthenticator:
         logging.debug("Начало аутентификационной сессии")
 
         r_execute=self._ps.get("https://login.mos.ru/sps/login/externalIdps/execute?typ=esia&name=esia_1&isPopup=false",
-                headers={"referer": "https://login.mos.ru/sps/login/methods/password"}, 
+                headers={"referer": "https://login.mos.ru/sps/login/methods/password"},
                 allow_redirects=False)
 
-        if r_execute.status_code !=303 :
+        # redirect to authenticationWS/proxyAe
+        if r_execute.status_code != 302:
             logging.error("Церемония поменялась")
             raise
 
-        esia_request=r_execute.headers["Location"]
+        r_proxyAe = self._ps.get(r_execute.headers["Location"],
+                headers={"referer": "https://login.mos.ru/sps/login/methods/password"},
+                allow_redirects=False)
+
+        if r_proxyAe.status_code !=303 :
+            logging.error("Церемония поменялась")
+            raise
+
+        esia_request=r_proxyAe.headers["Location"]
         au = PGUAuthenticator(esia_cfg)
         code=au.AuthenticateByEmail(esia_request, "https://login.mos.ru")
 
-        # в code должен быть хороший ответ типа 
+        # в code должен быть хороший ответ типа
         # https://login.mos.ru/sps/login/externalIdps/callback/esia/esia_1/false?c
         # ode=eyJ2ZXIiOjEsInR5cCI6IkpXVCIsInNidCI6ImF1dGhvcml6YXRpb25fY29...
-
         callback_cookies={
                 'fm': r_ae.cookies['fm'],
                 'history': r_execute.cookies['history'],
@@ -78,9 +86,17 @@ class MOSAuthenticator:
                 'origin': r_ae.cookies['origin']}
 
         #print(code)
-        r_callback = self._ps.get(code, allow_redirects=False, 
+        r_callback = self._ps.get(code, allow_redirects=False,
                 cookies=callback_cookies,
                 headers={'referer':'https://esia.gosuslugi.ru/'})
+        if r_callback.status_code != 303 :
+            logging.error("Церемония поменялась")
+            raise
+
+        r_callback = self._ps.get(r_callback.headers["Location"],
+                allow_redirects=False,
+                headers={'referer':'https://esia.gosuslugi.ru/'})
+
         if r_callback.cookies['Ltpatoken2'] != '' :
             logging.debug("Авторизовано успешно")
         self._ps.cookies.update(r_callback.cookies)
@@ -112,7 +128,7 @@ class MOSAuthenticator:
                 "timestamp" : opts["elk"]["timestamp"],
                 "signature" : opts["elk"]["signature"]}
 
-        r_tok=self._ps.post("https://my.mos.ru/data/token", 
+        r_tok=self._ps.post("https://my.mos.ru/data/token",
                 headers={"referer":my_req},
                 data=post_token)
         self.token = json.loads(r_tok.text)['token']
